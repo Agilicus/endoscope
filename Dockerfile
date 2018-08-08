@@ -8,7 +8,7 @@ ENV LC_ALL en_CA.UTF-8
 
 RUN apt-get update \
     && apt-get -y install --no-install-recommends \
-        locales python3 hping3 fping oping inetutils-ping iproute2 curl tcpdump \
+        locales util-linux python3 hping3 fping oping inetutils-ping iproute2 curl tcpdump \
     && rm -rf /var/lib/apt/lists/* \
     && locale-gen en_CA.UTF-8
 

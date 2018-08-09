@@ -57,26 +57,19 @@ RUN cd wireshark/build \
     && make install \
     && strip /usr/local/bin/dumpcap
 
-#dumpcap is /usr/local/bin/dumpcap
-#root@539adc5e6efa:~/wireshark/build# ldd /usr/local/bin/dumpcap
-#	linux-vdso.so.1 (0x00007ffe94ff6000)
-#	libpcap.so.0.8 => /usr/lib/x86_64-linux-gnu/libpcap.so.0.8 (0x00007fba19143000)
-#	libcap.so.2 => /lib/x86_64-linux-gnu/libcap.so.2 (0x00007fba18f3d000)
-#	libglib-2.0.so.0 => /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0 (0x00007fba18c27000)
-#	libz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007fba18a0a000)
-#	libnl-genl-3.so.200 => /lib/x86_64-linux-gnu/libnl-genl-3.so.200 (0x00007fba18804000)
-#	libnl-3.so.200 => /lib/x86_64-linux-gnu/libnl-3.so.200 (0x00007fba185e4000)
-#	libgmodule-2.0.so.0 => /usr/lib/x86_64-linux-gnu/libgmodule-2.0.so.0 (0x00007fba183e0000)
-#	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007fba17fef000)
-#	libpcre.so.3 => /lib/x86_64-linux-gnu/libpcre.so.3 (0x00007fba17d7d000)
-#	libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007fba17b5e000)
-#	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007fba177c0000)
-#	libdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007fba175bc000)
-#	/lib64/ld-linux-x86-64.so.2 (0x00007fba195a5000)
+FROM golang:1.10-stretch as crictl
+RUN mkdir -p /go/bin /go/src/github.com/kubernetes-incubator \
+    && cd /go/src/github.com/kubernetes-incubator \
+    && git clone https://github.com/kubernetes-incubator/cri-tools \
+    && cd cri-tools \
+    && git checkout 3df9c005e3e812dfb933867ae31843bc61969f63 \
+    && make \
+    && make install
 
 FROM ubuntu:18.04
 COPY --from=wireshark /usr/local/bin/dumpcap /usr/local/bin/dumpcap
 COPY --from=wireshark /usr/local/bin/pause /usr/local/bin/pause
+COPY --from=crictl /usr/local/bin/crictl /usr/local/bin/crictl
 ENV LANG en_CA.UTF-8
 ENV LC_ALL en_CA.UTF-8
 

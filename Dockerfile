@@ -3,6 +3,7 @@ LABEL maintainer="don@agilicus.com"
 
 ENV DEBIAN_FRONTEND noninteractive
 
+COPY pause.c /pause.c
 # Going to build a static-linked dump-cap, rather than
 # install wireshark-common in below. Saves 200MB.
 # Used github.com mirror rather than https://code.wireshark.org/review/wireshark
@@ -10,7 +11,8 @@ ENV DEBIAN_FRONTEND noninteractive
 # We do the fetch SHA rather than clone since the repo is big.
 RUN apt-get update \
     && apt-get -y install --no-install-recommends git build-essential ca-certificates \
-    && apt-get -y build-dep wireshark-common
+    && apt-get -y build-dep wireshark-common \
+    && gcc -o /usr/local/bin/pause /pause.c
 
 RUN mkdir -p wireshark/build \
     && cd wireshark \
@@ -74,6 +76,7 @@ RUN cd wireshark/build \
 
 FROM ubuntu:18.04
 COPY --from=wireshark /usr/local/bin/dumpcap /usr/local/bin/dumpcap
+COPY --from=wireshark /usr/local/bin/pause /usr/local/bin/pause
 ENV LANG en_CA.UTF-8
 ENV LC_ALL en_CA.UTF-8
 
@@ -84,4 +87,5 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && locale-gen en_CA.UTF-8
 
+CMD /usr/local/bin/pause
 WORKDIR /root

@@ -1,21 +1,3 @@
-## container-diagnostic-tools
-
-Tools to 
-
- - cross ping / tcp / udp connectivity check
- - capture traffic
- - inject traffic
- - debug processes
-
-This is normally run as a privileged container on the
-node, mounting the network namespaces. It can then,
-given another Pod name, 'enter' it.
-
-## Usage
-
-The motivation is to run this under Kubernetes as:
-
-```
 ---
 apiVersion: v1
 kind: Pod
@@ -44,11 +26,3 @@ spec:
       type: ""
     name: netns
 
-
-
-```
-
-## License
-
-The container is released under Apache 2.0 license.
-The individuals files within it vary.

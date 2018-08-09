@@ -52,7 +52,8 @@ RUN cd wireshark/build \
              -DBUILD_udpdump=OFF \
              -DBUILD_sharkd=OFF  .. \
     && make -j $(getconf _NPROCESSORS_ONLN) \
-    && make install
+    && make install \
+    && strip /usr/local/bin/dumpcap
 
 #dumpcap is /usr/local/bin/dumpcap
 #root@539adc5e6efa:~/wireshark/build# ldd /usr/local/bin/dumpcap

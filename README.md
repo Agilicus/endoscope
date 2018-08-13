@@ -4,9 +4,36 @@
 
 ### Ping
 
+This will ping either a single, or all, pods in a given namespace,
+from another pod/namespace combination. The output can be graphical
+(-g) or not.
+
+```
+  -h, --help            show this help message and exit
+  -d DEST_POD, --dest-pod DEST_POD
+                        Destination pod
+  -N DEST_NAMESPACE, --dest-namespace DEST_NAMESPACE
+                        Destination pod namespace
+  -c COUNT, --count COUNT
+                        Count of pings to send
+  -i INTERVAL, --interval INTERVAL
+                        Interval of pings to send
+  -g, --graph           Graph result
+  -a, --all             Ping all in namespace
+```
+
 Ping all pods in a namespace, from a given one, in graphical form:
 `scope -n NAMESPACE -p SRC-POD ping -c0 -a -g`
 ![img](img/graph-ping.png)
+
+### Hping
+
+hping3 a pod in a namespace, from a given one. This allows
+TCP, UDP as options instead of just ICMP.
+
+`scope -n NAMESPACE -shop -p POD hping -N DESTNAMESPACE -d DESTPOD  -- -c 1`
+
+After the --, all arguments are passed to hping3. See hping3(8)
 
 ### Shell
 

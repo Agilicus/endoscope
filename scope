@@ -34,27 +34,32 @@ subparsers = parser.add_subparsers(help='command',dest='command')
 ## Ping
 parser_ping = subparsers.add_parser('ping', help='ping help')
 parser_ping.add_argument('-d', '--dest-pod', help='Destination pod')
-parser_ping.add_argument('-n', '--dest-namespace', help='Destination pod namespace', default = 'default')
+parser_ping.add_argument('-N', '--dest-namespace', help='Destination pod namespace', default = 'default')
 parser_ping.add_argument('-c', '--count', help='Count of pings to send', default = '1')
 parser_ping.add_argument('-i', '--interval', help='Interval of pings to send', default = '0.1')
 parser_ping.add_argument('-g', '--graph', help='Graph result', action = 'store_true', default = False)
 parser_ping.add_argument('-a', '--all', help='Ping all in namespace', action = 'store_true', default = False)
 ## Shell
-parser_ping = subparsers.add_parser('shell', help='shell help')
-parser_ping.add_argument('args', nargs=argparse.REMAINDER)
+parser_shell = subparsers.add_parser('shell', help='shell help')
+parser_shell.add_argument('args', nargs=argparse.REMAINDER)
 ## Launch
-parser_ping = subparsers.add_parser('launch', help='launch help')
+parser_launch = subparsers.add_parser('launch', help='launch help')
 ## Cleanup
-parser_ping = subparsers.add_parser('cleanup', help='cleanup. If source-pod == all, delete all debug- in namespace.')
+parser_cleanup = subparsers.add_parser('cleanup', help='cleanup. If source-pod == all, delete all debug- in namespace.')
 ## pids
-parser_ping = subparsers.add_parser('pids', help='Show pids in namespace')
+parser_pids = subparsers.add_parser('pids', help='Show pids in namespace')
 ## strace
-parser_ping = subparsers.add_parser('strace', help='Show syscalls of pid in pod')
-parser_ping.add_argument('-p', '--pid', help='Override first pid (see pids commmand)', default = '')
-parser_ping.add_argument('-e', '--expr', help='Set the strace filter (-e) expression, e.g. -e file', default = '')
+parser_strace = subparsers.add_parser('strace', help='Show syscalls of pid in pod')
+parser_strace.add_argument('-p', '--pid', help='Override first pid (see pids commmand)', default = '')
+parser_strace.add_argument('-e', '--expr', help='Set the strace filter (-e) expression, e.g. -e file', default = '')
 ## gdb
-parser_ping = subparsers.add_parser('gdb', help='Attach gdb to pid')
-parser_ping.add_argument('-p', '--pid', help='Override first pid (see pids commmand)', default = '')
+parser_gdb = subparsers.add_parser('gdb', help='Attach gdb to pid')
+parser_gdb.add_argument('-p', '--pid', help='Override first pid (see pids commmand)', default = '')
+## hping
+parser_hping = subparsers.add_parser('hping', help='hping help')
+parser_hping.add_argument('-d', '--dest-pod', help='Destination pod')
+parser_hping.add_argument('-N', '--dest-namespace', help='Destination pod namespace', default = 'default')
+parser_hping.add_argument('args', nargs=argparse.REMAINDER)
 
 args = parser.parse_args()
 
@@ -174,11 +179,13 @@ def ping(name, args, spod, api):
     ips = []
     cmd = ['/usr/bin/noping' if args.graph else '/usr/bin/oping', '-c', args.count, '-i', args.interval]
     if args.all:
-        spods = api.list_namespaced_pod(watch=False, namespace=args.namespace)
+        spods = api.list_namespaced_pod(watch=False, namespace=args.dest_namespace)
         for _spod in spods.items:
             cmd.append(_spod.status.pod_ip)
     else:
-        cmd.append(spod.status.pod_ip)
+        spods = api.list_namespaced_pod(watch=False, namespace=args.dest_namespace, field_selector='metadata.name=%s' % args.dest_pod )
+        for _spod in spods.items:
+            cmd.append(_spod.status.pod_ip)
     rc = runit(name, args,spod,cmd)
     if args.terminate == True:
         body = client.V1DeleteOptions()
@@ -228,6 +235,25 @@ def gdb(name, args, spod, api):
     if len(args.pid) == 0:
         args.pid = findFirstPid(name, args, spod, api)
     return os.system("kubectl -n %s exec -it %s -- /usr/bin/nsenter -p -t %s /usr/bin/gdb -p %s" % (spod.metadata.namespace, name, args.pid, args.pid))
+
+def hping(name, args, spod, api):
+    launch(name, args, spod, api)
+
+    if len(args.args) and args.args[0] == '--':
+        args.args = args.args[1:]
+
+    cmd = ['/usr/sbin/hping3'] + args.args
+
+    spods = api.list_namespaced_pod(watch=False, namespace=args.dest_namespace, field_selector='metadata.name=%s' % args.dest_pod )
+    for _spod in spods.items:
+        cmd.append(_spod.status.pod_ip)
+
+    rc = runit(name, args,spod,cmd)
+    if args.terminate == True:
+        body = client.V1DeleteOptions()
+        api.delete_namespaced_pod(namespace=spod.metadata.namespace, name=name, body=body)
+    return rc
+
 
 #######
 

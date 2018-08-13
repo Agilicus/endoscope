@@ -1,6 +1,53 @@
 ## container-diagnostic-tools
 
+![img](img/endoscope.png)
+
+Endoscope: snoop around inside your Kubernetes pods.
+
+- Debug them
+- Ping from them to others
+- Wireshark from them
+- tcpdump
+- and more
+
 ## Usage
+
+This repo contains two components:
+
+1. A Python script (scope) which will launch a utility container
+   into the namespace of a running pod, and then perform commands
+   such as ping other pods or debug or capture within it.
+2. A utility container (utilities/endoscope) which is a Ubuntu 18.04
+   image with gdb/tcpdump/dumpcap/ping/hping/curl installed in it.
+
+Overal usage. This requires a source namespace/pod to attadch to.
+By default it launches a single new container, leaving it running
+for better interactive performance. To terminate at the end
+of each command, use '--terminate'. To cleanup all, use the 'cleanup'
+command.
+
+By default this assumes the utility container comes from a private
+registry, and that registry credentials named 'regcred' exist. If
+not, use '--regcred ""' to override.
+
+```
+kubectl create secret -n NAMESPACE docker-registry regcred --docker-server=SERVER --docker-username="USER" --docker-password="PASS"
+```
+
+Use scope --help for up-to-date arguments. Current global arguments:
+
+```
+  -h, --help            show this help message and exit
+  -i IMAGE, --image IMAGE
+                        Image to scope with
+  -n NAMESPACE, --namespace NAMESPACE
+                        Source namespace
+  -p POD, --pod POD     Source pod
+  -c REGCRED, --regcred REGCRED
+                        Registry credentials, if private
+  -t, --terminate       Terminate (do not cache) debug pod (e.g. terminate
+                        each time)
+```
 
 ### Ping
 

@@ -29,6 +29,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--image', help='Image to scope with', default = 'cr.agilicus.com/utilities/endoscope')
 parser.add_argument('-n', '--namespace', help='Source namespace', default = 'default')
 parser.add_argument('-p', '--pod', help='Source pod', default = '', required=True)
+parser.add_argument('-c', '--regcred', help='Registry credentials, if private', default = 'regcred')
 parser.add_argument('-t', '--terminate', help='Terminate (do not cache) debug pod (e.g. terminate each time)', action = 'store_true', default = False)
 subparsers = parser.add_subparsers(help='command',dest='command')
 ## Ping
@@ -71,8 +72,7 @@ spec:
   nodeName: {node_name}
   hostPID: true
   restartPolicy: Never
-  imagePullSecrets:
-    - name: regcred
+  {imagePullSecrets}
   containers:
   - name: {name}
     securityContext:
@@ -141,7 +141,9 @@ def runit(name, args, spod, cmd):
 
 def launch(name, args, spod, api):
     columns, lines = os.get_terminal_size()
-    sm = yaml.load(template.format(name=name, node_name=spod.spec.node_name, image=args.image, lines=lines, columns=columns, term=os.getenv('TERM')))
+    imagePullSecrets = "imagePullSecrets:\n    - name: %s" % args.regcred if len(args.regcred) else ""
+    ym = template.format(name=name, node_name=spod.spec.node_name, image=args.image, lines=lines, columns=columns, term=os.getenv('TERM'), imagePullSecrets=imagePullSecrets)
+    sm = yaml.load(ym)
     try:
         api.create_namespaced_pod(namespace=spod.metadata.namespace,  body=sm)
         while True:

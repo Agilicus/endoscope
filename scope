@@ -52,6 +52,9 @@ parser_ping = subparsers.add_parser('pids', help='Show pids in namespace')
 parser_ping = subparsers.add_parser('strace', help='Show syscalls of pid in pod')
 parser_ping.add_argument('-p', '--pid', help='Override first pid (see pids commmand)', default = '')
 parser_ping.add_argument('-e', '--expr', help='Set the strace filter (-e) expression, e.g. -e file', default = '')
+## gdb
+parser_ping = subparsers.add_parser('gdb', help='Attach gdb to pid')
+parser_ping.add_argument('-p', '--pid', help='Override first pid (see pids commmand)', default = '')
 
 args = parser.parse_args()
 
@@ -147,6 +150,7 @@ def launch(name, args, spod, api):
             pass
         else:
             raise e
+    return 0
 
 def shell(name, args, spod, api):
     launch(name, args, spod, api)
@@ -162,7 +166,7 @@ def shell(name, args, spod, api):
     if args.terminate == True:
         body = client.V1DeleteOptions()
         api.delete_namespaced_pod(namespace=spod.metadata.namespace, name=name, body=body)
-    sys.exit(rc)
+    return rc
 
 def ping(name, args, spod, api):
     launch(name, args, spod, api)
@@ -179,7 +183,7 @@ def ping(name, args, spod, api):
     if args.terminate == True:
         body = client.V1DeleteOptions()
         api.delete_namespaced_pod(namespace=spod.metadata.namespace, name=name, body=body)
-    sys.exit(rc)
+    return rc
 
 def cleanup(name, args, spod, api):
     if spod == None:
@@ -191,6 +195,7 @@ def cleanup(name, args, spod, api):
         if re.match("^debug-", pod.metadata.name):
             print("Delete %s/%s" % (pod.metadata.namespace, pod.metadata.name))
             api.delete_namespaced_pod(namespace=pod.metadata.namespace, name=pod.metadata.name, body=body)
+    return 0
 
 def pids(name, args, spod, api):
     launch(name, args, spod, api)
@@ -206,6 +211,7 @@ def pids(name, args, spod, api):
         pid = re.sub("[^[0-9]*","", pid)
         pids.append(pid)
     print(' '.join(pids))
+    return 0
 
 def strace(name, args, spod, api):
     launch(name, args, spod, api)
@@ -215,14 +221,15 @@ def strace(name, args, spod, api):
     if len(args.expr):
         cmd.append ( '-e' )
         cmd.append ( args.expr )
-    rc = runit(name, args, spod, cmd)
+    return runit(name, args, spod, cmd)
 
+def gdb(name, args, spod, api):
+    launch(name, args, spod, api)
+    if len(args.pid) == 0:
+        args.pid = findFirstPid(name, args, spod, api)
+    return os.system("kubectl -n %s exec -it %s -- /usr/bin/nsenter -p -t %s /usr/bin/gdb -p %s" % (spod.metadata.namespace, name, args.pid, args.pid))
 
-
-## strace
-parser_ping = subparsers.add_parser('strace', help='Show syscalls of pid in pod')
-parser_ping.add_argument('-p', '--pid', help='Override first pid (see pids commmand)', default = '')
-parser_ping.add_argument('-e', '--expr', help='Set the strace filter (-e) expression', default = 'file')
+#######
 
 config.load_kube_config()
 api = client.CoreV1Api()
@@ -232,8 +239,11 @@ if args.command == 'cleanup' and args.pod == 'all':
     name = None
 else:
     spods = api.list_namespaced_pod(watch=False, namespace=args.namespace, field_selector='metadata.name=%s' % args.pod)
+    if len(spods.items) == 0:
+        print("Error: %s/%s does not specify a valid pod" % (args.namespace, args.pod), file=sys.stderr)
+        sys.exit(1)
     spod = spods.items[0]
     name = 'debug-%s' % spod.metadata.name
 
 r  = locals()[args.command](name, args, spod, api)
-
+sys.exit(r)

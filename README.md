@@ -49,6 +49,14 @@ If 'expr' is specified, show only those syscalls (see strace(1)).
 If -p # is specified (e.g. as the result of the 'pids' command), use
 this pid instead of the first.
 
+### gdb
+
+Debug (gdb) a pid (default first pid in Pod).
+
+`scope -n NAMESPACE -p POD gdb [-p #]`
+
+Runs the debugger, privileged, in the pid namespace, attached.
+
 ## Container
 
 The container here (cr.agilicus.com/utilities/endoscope) contains tools to

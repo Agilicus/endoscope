@@ -1,18 +1,23 @@
+#kube-spawn-flannel-worker-fth2z1/10.22.0.152
 ---
 apiVersion: v1
 kind: Pod
 metadata:
   name: debug
 spec:
+  nodeName: kube-spawn-flannel-worker-fth2z1
+  hostPID: true
   imagePullSecrets:
     - name: regcred
   containers:
   - name: debug
     securityContext:
       privileged: true
+      capabilities:
+        add: ["NET_ADMIN", "SYS_PTRACE"]
     image: cr.agilicus.com/utilities/container-diagnostic-tools:latest
     volumeMounts:
-    - mountPath: /var/run/cri.sock
+    - mountPath: /var/run/dockershim.sock
       name: crisock
     - mountPath: /run/docker/netns
       name: netns

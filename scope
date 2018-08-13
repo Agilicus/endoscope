@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+# pip install kubernetes
+# pip install cri
+
+#
+# We have a new container with some tools (ping et al)
+# We run it as a privileged Pod, mounting CRI + netns.
+# Inside it we find the pid of the 'source', and from
+# this we can do a 'nsenter -n -t <pid>', putting us
+# in the same network namespace.
+#
+# Now we can 'tcpdump to stdout'
+#
+# See extcap for how to integrate with wireshark.
+# e.g. /usr/lib/x86_64-linux-gnu/wireshark/extcap/sshdump
+import argparse
+import yaml
+import re
+import os
+import sys
+import json
+import time
+from kubernetes import client, config
+from kubernetes.stream import stream
+from kubernetes.stream.ws_client import ERROR_CHANNEL
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-i', '--image', help='Image to scope with', default = 'cr.agilicus.com/utilities/endoscope')
+parser.add_argument('-n', '--namespace', help='Source namespace', default = 'default')
+parser.add_argument('-p', '--pod', help='Source pod', default = '', required=True)
+parser.add_argument('-t', '--terminate', help='Terminate (do not cache) debug pod (e.g. terminate each time)', action = 'store_true', default = False)
+subparsers = parser.add_subparsers(help='command',dest='command')
+## Ping
+parser_ping = subparsers.add_parser('ping', help='ping help')
+parser_ping.add_argument('-d', '--dest-pod', help='Destination pod')
+parser_ping.add_argument('-n', '--dest-namespace', help='Destination pod namespace', default = 'default')
+parser_ping.add_argument('-c', '--count', help='Count of pings to send', default = '1')
+parser_ping.add_argument('-i', '--interval', help='Interval of pings to send', default = '0.1')
+parser_ping.add_argument('-g', '--graph', help='Graph result', action = 'store_true', default = False)
+parser_ping.add_argument('-a', '--all', help='Ping all in namespace', action = 'store_true', default = False)
+## Shell
+parser_ping = subparsers.add_parser('shell', help='shell help')
+parser_ping.add_argument('args', nargs=argparse.REMAINDER)
+## Launch
+parser_ping = subparsers.add_parser('launch', help='launch help')
+## Cleanup
+parser_ping = subparsers.add_parser('cleanup', help='cleanup. If source-pod == all, delete all debug- in namespace.')
+## pids
+parser_ping = subparsers.add_parser('pids', help='Show pids in namespace')
+## strace
+parser_ping = subparsers.add_parser('strace', help='Show syscalls of pid in pod')
+parser_ping.add_argument('-p', '--pid', help='Override first pid (see pids commmand)', default = '')
+parser_ping.add_argument('-e', '--expr', help='Set the strace filter (-e) expression, e.g. -e file', default = '')
+
+args = parser.parse_args()
+
+template = """
+apiVersion: v1
+metadata:
+  name: {name}
+spec:
+  nodeName: {node_name}
+  hostPID: true
+  restartPolicy: Never
+  imagePullSecrets:
+    - name: regcred
+  containers:
+  - name: {name}
+    securityContext:
+      privileged: true
+      capabilities:
+        add: ["SYS_PTRACE", "NET_ADMIN"]
+    image: {image}
+    volumeMounts:
+    - mountPath: /var/run/dockershim.sock
+      name: crisock
+    - mountPath: /run/docker/netns
+      name: netns
+    env:
+      - name: "LINES"
+        value: "{lines}"
+      - name: "COLUMNS"
+        value: "{columns}"
+      - name: "TERM"
+        value: "{term}"
+  volumes:
+  - hostPath:
+      path: /var/run/dockershim.sock
+      type: ""
+    name: crisock
+  - hostPath:
+      path: /var/run/docker/netns
+      type: ""
+    name: netns
+"""
+
+def findFirstPid(name, args, spod, api):
+    # This is a bit gross, I'm not sure a better way. We have the cgroup-name
+    # from 'container_statuses': [{'container_id': 'docker://5f5f3135d5ff2300ea478704a774ed758b5c476888ff881bfa178436693ea410'...]
+    # and, this is references in <hostpid>/cgroup. There could be more than 1 pid in that cgroup,
+    # but we just care about the first since we use it to enter the netns.
+    # So, we run grep -l CGROUP /proc/*/cgroup, and then split the result.
+    docker_name = spod.status.container_statuses[0].container_id
+    cgroup = re.sub("^docker://","", docker_name)
+    cmd = ['/bin/sh', '-c','/bin/grep -l pids:/%s /proc/*/cgroup' % cgroup]
+
+    line = stream(api.connect_get_namespaced_pod_exec, name=name, namespace=spod.metadata.namespace, command=cmd, stderr=True, stdin=False, stdout=True, tty=False)
+    _pids = list(filter(None, str.split(line, '\n')))
+    pid = re.sub("[^[0-9]*","", _pids[0])
+    return pid
+
+def runit(name, args, spod, cmd):
+    pid = findFirstPid(name, args, spod, api)
+    ns_command = ['/usr/bin/nsenter', '-n', '-t', pid] + cmd
+    resp = stream(api.connect_get_namespaced_pod_exec, name=name, namespace=spod.metadata.namespace, command=ns_command, stderr=True, stdin=False, stdout=True, tty=False, _preload_content=False)
+
+    rc = -1
+    while resp.is_open():
+        resp.update(timeout=1)
+        if resp.peek_stdout():
+            print(resp.read_stdout(), end='')
+        if resp.peek_stderr():
+            print(resp.read_stderr(), file=sys.stderr, end='')
+        if resp.peek_channel(ERROR_CHANNEL):
+            status = json.loads(resp.read_channel(ERROR_CHANNEL))
+            if status['status'] == 'Success':
+                rc = 0
+            else:
+                rc = int(status['details']['causes'][0]['message'])
+    resp.close()
+    return rc
+
+def launch(name, args, spod, api):
+    columns, lines = os.get_terminal_size()
+    sm = yaml.load(template.format(name=name, node_name=spod.spec.node_name, image=args.image, lines=lines, columns=columns, term=os.getenv('TERM')))
+    try:
+        api.create_namespaced_pod(namespace=spod.metadata.namespace,  body=sm)
+        while True:
+            resp = api.read_namespaced_pod(namespace=spod.metadata.namespace, name=name)
+            if resp.status.phase != 'Pending':
+                break
+            time.sleep(0.1)
+    except client.rest.ApiException as e:
+        if e.status == 409:
+            # Conflict, e.g. exists, we'll use it
+            pass
+        else:
+            raise e
+
+def shell(name, args, spod, api):
+    launch(name, args, spod, api)
+    # As a special case, if args is empty, make an interactive shell
+    # if we are a tty
+    if len(args.args) == 0 and os.isatty(0):
+        pid = findFirstPid(name, args, spod, api)
+        rc = os.system("kubectl -n %s exec -it %s -- /usr/bin/nsenter -n -t %s bash" % (spod.metadata.namespace, name, pid))
+        rc = (rc & 0xff00) >> 8
+    else:
+        cmd = args.args
+        rc = runit(name, args, spod, cmd)
+    if args.terminate == True:
+        body = client.V1DeleteOptions()
+        api.delete_namespaced_pod(namespace=spod.metadata.namespace, name=name, body=body)
+    sys.exit(rc)
+
+def ping(name, args, spod, api):
+    launch(name, args, spod, api)
+
+    ips = []
+    cmd = ['/usr/bin/noping' if args.graph else '/usr/bin/oping', '-c', args.count, '-i', args.interval]
+    if args.all:
+        spods = api.list_namespaced_pod(watch=False, namespace=args.namespace)
+        for _spod in spods.items:
+            cmd.append(_spod.status.pod_ip)
+    else:
+        cmd.append(spod.status.pod_ip)
+    rc = runit(name, args,spod,cmd)
+    if args.terminate == True:
+        body = client.V1DeleteOptions()
+        api.delete_namespaced_pod(namespace=spod.metadata.namespace, name=name, body=body)
+    sys.exit(rc)
+
+def cleanup(name, args, spod, api):
+    if spod == None:
+        dpods = api.list_namespaced_pod(watch=False, namespace=args.namespace).items
+    else:
+        dpods = api.list_namespaced_pod(watch=False, namespace=args.namespace, field_selector = 'metadata.name=debug-%s' % spod.metadata.name).items
+    for pod in dpods:
+        body = client.V1DeleteOptions()
+        if re.match("^debug-", pod.metadata.name):
+            print("Delete %s/%s" % (pod.metadata.namespace, pod.metadata.name))
+            api.delete_namespaced_pod(namespace=pod.metadata.namespace, name=pod.metadata.name, body=body)
+
+def pids(name, args, spod, api):
+    launch(name, args, spod, api)
+    docker_name = spod.status.container_statuses[0].container_id
+    cgroup = re.sub("^docker://","", docker_name)
+    cmd = ['/bin/sh', '-c','/bin/grep pids:/%s /proc/*/cgroup' % cgroup]
+
+    line = stream(api.connect_get_namespaced_pod_exec, name=name, namespace=spod.metadata.namespace, command=cmd, stderr=True, stdin=False, stdout=True, tty=False)
+    _pids = list(filter(None, str.split(line, '\n')))
+    pids = []
+    for pid in _pids:
+        pid = re.sub("/cgroup.*","", pid)
+        pid = re.sub("[^[0-9]*","", pid)
+        pids.append(pid)
+    print(' '.join(pids))
+
+def strace(name, args, spod, api):
+    launch(name, args, spod, api)
+    if len(args.pid) == 0:
+        args.pid = findFirstPid(name, args, spod, api)
+    cmd = ['/usr/bin/strace', '-p', args.pid]
+    if len(args.expr):
+        cmd.append ( '-e' )
+        cmd.append ( args.expr )
+    rc = runit(name, args, spod, cmd)
+
+
+
+## strace
+parser_ping = subparsers.add_parser('strace', help='Show syscalls of pid in pod')
+parser_ping.add_argument('-p', '--pid', help='Override first pid (see pids commmand)', default = '')
+parser_ping.add_argument('-e', '--expr', help='Set the strace filter (-e) expression', default = 'file')
+
+config.load_kube_config()
+api = client.CoreV1Api()
+# Cleanup can accept 'all', which doesn't match
+if args.command == 'cleanup' and args.pod == 'all':
+    spod = None
+    name = None
+else:
+    spods = api.list_namespaced_pod(watch=False, namespace=args.namespace, field_selector='metadata.name=%s' % args.pod)
+    spod = spods.items[0]
+    name = 'debug-%s' % spod.metadata.name
+
+r  = locals()[args.command](name, args, spod, api)
+

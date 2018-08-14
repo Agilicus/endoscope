@@ -53,8 +53,9 @@ RUN cd wireshark/build \
              -DBUILD_randpktdump=OFF \
              -DBUILD_udpdump=OFF \
              -DBUILD_sharkd=OFF  .. \
-    && make -j $(getconf _NPROCESSORS_ONLN) \
-    && make install \
+    && make -j $(getconf _NPROCESSORS_ONLN) dumpcap \
+    && cp -r run/dumpcap /usr/local/bin/dumpcap \
+    && chmod a=rx /usr/local/bin/dumpcap \
     && strip /usr/local/bin/dumpcap
 
 FROM golang:1.10-stretch as crictl

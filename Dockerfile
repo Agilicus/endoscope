@@ -73,6 +73,7 @@ COPY --from=wireshark /usr/local/bin/pause /usr/local/bin/pause
 COPY --from=crictl /usr/local/bin/crictl /usr/local/bin/crictl
 ENV LANG en_CA.UTF-8
 ENV LC_ALL en_CA.UTF-8
+ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get update \
     && apt-get -y install --no-install-recommends \

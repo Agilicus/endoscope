@@ -24,11 +24,15 @@ from kubernetes import client, config
 from kubernetes.stream import stream
 from kubernetes.stream.ws_client import ERROR_CHANNEL
 
+if os.path.basename(sys.argv[0]) == 'k8scap':
+    sys.argv.insert(1, '--pod')
+    sys.argv.insert(2, 'None')
+    sys.argv.insert(3, 'dumpcap')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--image', help='Image to scope with', default = 'cr.agilicus.com/utilities/endoscope')
 parser.add_argument('-n', '--namespace', help='Source namespace', default = 'default')
-parser.add_argument('-p', '--pod', help='Source pod', default = '', required=True)
+parser.add_argument('-p', '--pod', help='Source pod', default = '', required = True)
 parser.add_argument('-c', '--regcred', help='Registry credentials, if private', default = 'regcred')
 parser.add_argument('-t', '--terminate', help='Terminate (do not cache) debug pod (e.g. terminate each time)', action = 'store_true', default = False)
 subparsers = parser.add_subparsers(help='command',dest='command')
@@ -60,6 +64,18 @@ parser_gdb.add_argument('-p', '--pid', help='Override first pid (see pids commma
 parser_hping = subparsers.add_parser('hping', help='hping help')
 parser_hping.add_argument('-d', '--dest-pod', help='Destination pod')
 parser_hping.add_argument('-N', '--dest-namespace', help='Destination pod namespace', default = 'default')
+parser_hping.add_argument('args', nargs=argparse.REMAINDER)
+## dumpcap
+parser_hping = subparsers.add_parser('dumpcap', help='dumpcap help')
+parser_hping.add_argument('--extcap-interfaces', help='extcap interfaces', action = 'store_true')
+parser_hping.add_argument('--extcap-interface', help='extcap interface')
+parser_hping.add_argument('--extcap-capture-filter', help='extcap-capture-filter')
+parser_hping.add_argument('--extcap-dlts-interface', help='extcap dlts', action = 'store_true')
+parser_hping.add_argument('--extcap-config', help='extcap-config', action = 'store_true')
+parser_hping.add_argument('--capture-config', help='config', action = 'store_true')
+parser_hping.add_argument('--capture', help='capture', action = 'store_true')
+parser_hping.add_argument('--filter', help='filter', default='')
+parser_hping.add_argument('--fifo', help='fifo')
 parser_hping.add_argument('args', nargs=argparse.REMAINDER)
 
 args = parser.parse_args()
@@ -140,7 +156,12 @@ def runit(name, args, spod, cmd):
     return rc
 
 def launch(name, args, spod, api):
-    columns, lines = os.get_terminal_size()
+    try:
+        columns, lines = os.get_terminal_size()
+    except:
+        # e.g. not a tty
+        columns = 80
+        lines = 24
     imagePullSecrets = "imagePullSecrets:\n    - name: %s" % args.regcred if len(args.regcred) else ""
     ym = template.format(name=name, node_name=spod.spec.node_name, image=args.image, lines=lines, columns=columns, term=os.getenv('TERM'), imagePullSecrets=imagePullSecrets)
     sm = yaml.load(ym)
@@ -256,13 +277,64 @@ def hping(name, args, spod, api):
         api.delete_namespaced_pod(namespace=spod.metadata.namespace, name=name, body=body)
     return rc
 
+# 1. k8scap --extcap-interfaces
+# 2. k8scap --extcap-config --extcap-interface k8scap
+# 3. k8scap --extcap-dlts --extcap-interface k8scap
+# 4. k8scap --extcap-config --extcap-interface k8scap
+# 5. k8scap --capture --extcap-interface k8scap
+#   dumpcap -n -i /tmp/xxx -Z none
+def dumpcap(name, args, spod, api):
+    #["python3", "/usr/lib/x86_64-linux-gnu/wireshark/extcap/k8scap", "--capture", "--extcap-interface", "default/ingress-nginx-ingress-controller-7b66cb4878-x7wwb", "--fifo", "/tmp/wireshark_extcap_default-ingress-nginx-ingress-controller-7b66cb4878-x7wwb_20180813162059_RCnP40"], 0x7ffd92b919e0 /* 59 vars */) = 0
+
+    if args.capture:
+        import pdb; pdb.set_trace()
+        namespace = args.extcap_interface.split('/')[0]
+        pod = args.extcap_interface.split('/')[1]
+        spods = api.list_namespaced_pod(watch=False, namespace=namespace, field_selector='metadata.name=%s' % pod)
+        spod = spods.items[0]
+        name = 'debug-%s' % spod.metadata.name
+        launch(name, args, spod, api)
+        pid = findFirstPid(name, args, spod, api)
+        command = ['/bin/sh', '-c', '/usr/bin/nsenter -n -t %s /usr/local/bin/dumpcap -f \'%s\' -w - q 2>/dev/null' % (pid,args.filter)]
+
+        resp = stream(api.connect_get_namespaced_pod_exec, name=name, namespace=spod.metadata.namespace, command=command, stderr=True, stdin=False, stdout=True, tty=False, _preload_content=False)
+
+        fd = open(args.fifo, "wb")
+
+        while resp.is_open():
+            resp.update(timeout=10)
+            if resp.peek_stdout():
+                ln = resp.read_stdout()
+                fd.write(ln)
+            if resp.peek_stderr():
+                print(resp.read_stderr(), file=sys.stderr, end='')
+            if resp.peek_channel(ERROR_CHANNEL):
+                status = json.loads(resp.read_channel(ERROR_CHANNEL))
+                if status['status'] == 'Success':
+                    rc = 0
+                else:
+                    rc = int(status['details']['causes'][0]['message'])
+        fd.close()
+        resp.close()
+    elif args.extcap_config and len(args.extcap_interface):
+        print("arg {number=0}{call=--filter}{type=string}{default=''}{display=Capture filter}")
+    elif args.extcap_config:
+        print("arg {number=0}{call=--namespace}{display=namespace}{type=string}{tooltip='*|all|namespace'}")
+        print("arg {number=1}{call=--pod}{display=pod}{type=string}{default='*'}{tooltip='*|pod'}")
+        print("arg {number=2}{call=dumpcap}{display=dumpcap}")
+        print("arg {number=3}{call=--remote-filter}{display=remote filter}")
+    elif args.extcap_interfaces:
+        print("k8scap {version=0.1.0}{help=https://git.agilicus.com/utilities/endoscope}")
+        spods = api.list_pod_for_all_namespaces(watch=False)
+        for spod in spods.items:
+            print("interface {value=%s/%s}{display=Capture on ns:%s, pod:%s}" % (spod.metadata.namespace, spod.metadata.name, spod.metadata.namespace,spod.metadata.name))
 
 #######
 
 config.load_kube_config()
 api = client.CoreV1Api()
 # Cleanup can accept 'all', which doesn't match
-if args.command == 'cleanup' and args.pod == 'all':
+if args.command == 'dumpcap' or (args.command == 'cleanup' and args.pod == 'all'):
     spod = None
     name = None
 else:

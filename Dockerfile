@@ -78,7 +78,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get update \
     && apt-get -y install --no-install-recommends \
-        locales util-linux python3 hping3 fping oping ca-certificates build-essential python3-distutils \
+        locales util-linux python3 hping3 fping oping ca-certificates build-essential python3-dev python3-distutils \
         inetutils-ping iproute2 curl tcpdump libpcap0.8 libglib2.0-0 libnl-3-200 libnl-genl-3-200 libpcre3 \
         zlib1g libcap2 gdb strace iptables tcpflow \
     && curl -fLs https://bootstrap.pypa.io/get-pip.py > get-pip.py \

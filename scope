@@ -30,7 +30,7 @@ if os.path.basename(sys.argv[0]) == 'k8scap':
     sys.argv.insert(3, 'dumpcap')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-i', '--image', help='Image to scope with', default = 'cr.agilicus.com/utilities/endoscope')
+parser.add_argument('-i', '--image', help='Image to scope with', default = 'agilicus/endoscope')
 parser.add_argument('-n', '--namespace', help='Source namespace', default = 'default')
 parser.add_argument('-p', '--pod', help='Source pod', default = '', required = True)
 parser.add_argument('-c', '--regcred', help='Registry credentials, if private', default = 'regcred')

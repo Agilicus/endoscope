@@ -127,7 +127,7 @@ def findFirstPid(name, args, spod, api):
     # So, we run grep -l CGROUP /proc/*/cgroup, and then split the result.
     docker_name = spod.status.container_statuses[0].container_id
     cgroup = re.sub("^docker://","", docker_name)
-    cmd = ['/bin/sh', '-c','/bin/grep -l pids:/%s /proc/*/cgroup' % cgroup]
+    cmd = ['/bin/sh', '-c','/bin/grep -l pids:/.*%s /proc/*/cgroup' % cgroup]
 
     line = stream(api.connect_get_namespaced_pod_exec, name=name, namespace=spod.metadata.namespace, command=cmd, stderr=True, stdin=False, stdout=True, tty=False)
     _pids = list(filter(None, str.split(line, '\n')))

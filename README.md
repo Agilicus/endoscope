@@ -133,7 +133,7 @@ Runs the debugger, privileged, in the pid namespace, attached.
 
 ## Container
 
-The container here (cr.agilicus.com/utilities/endoscope) contains tools to
+The container here (agilicus/endoscope) contains tools to
 
  - cross ping / tcp / udp connectivity check
  - capture traffic
@@ -162,7 +162,7 @@ spec:
   - name: debug
     securityContext:
       privileged: true
-    image: cr.agilicus.com/utilities/container-diagnostic-tools:latest
+    image: agilicus/endoscope:latest
     volumeMounts:
     - mountPath: /var/run/cri.sock
       name: crisock

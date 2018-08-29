@@ -13,7 +13,7 @@ spec:
         privileged: true
         capabilities:
           add: ["NET_ADMIN", "SYS_PTRACE"]
-      image: cr.agilicus.com/utilities/container-diagnostic-tools:latest
+      image: agilicus/endoscope:latest
       volumeMounts:
         - mountPath: /var/run/dockershim.sock
           name: crisock

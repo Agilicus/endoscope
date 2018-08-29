@@ -71,14 +71,19 @@ FROM ubuntu:18.04
 COPY --from=wireshark /usr/local/bin/dumpcap /usr/local/bin/dumpcap
 COPY --from=wireshark /usr/local/bin/pause /usr/local/bin/pause
 COPY --from=crictl /usr/local/bin/crictl /usr/local/bin/crictl
+COPY sha256sums sha256sums
 ENV LANG en_CA.UTF-8
 ENV LC_ALL en_CA.UTF-8
 ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get update \
     && apt-get -y install --no-install-recommends \
-        locales util-linux python3 hping3 fping oping \
-        inetutils-ping iproute2 curl tcpdump libpcap0.8 libglib2.0-0 libnl-3-200 libnl-genl-3-200 libpcre3 zlib1g libcap2 gdb strace iptables tcpflow \
+        locales util-linux python3 hping3 fping oping ca-certificates build-essential python3-dev python3-distutils \
+        inetutils-ping iproute2 curl tcpdump libpcap0.8 libglib2.0-0 libnl-3-200 libnl-genl-3-200 libpcre3 \
+        zlib1g libcap2 gdb strace iptables tcpflow \
+    && curl -fLs https://bootstrap.pypa.io/get-pip.py > get-pip.py \
+    && sha256sum -c sha256sums \
+    && python3 get-pip.py \
     && rm -rf /var/lib/apt/lists/* \
     && locale-gen en_CA.UTF-8
 

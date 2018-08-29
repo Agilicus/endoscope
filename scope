@@ -33,7 +33,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--image', help='Image to scope with', default = 'agilicus/endoscope')
 parser.add_argument('-n', '--namespace', help='Source namespace', default = 'default')
 parser.add_argument('-p', '--pod', help='Source pod', default = '', required = True)
-parser.add_argument('-c', '--regcred', help='Registry credentials, if private', default = 'regcred')
+parser.add_argument('-c', '--regcred', help='Registry credentials, if private', default = '')
 parser.add_argument('-t', '--terminate', help='Terminate (do not cache) debug pod (e.g. terminate each time)', action = 'store_true', default = False)
 subparsers = parser.add_subparsers(help='command',dest='command')
 ## Ping

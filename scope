@@ -131,8 +131,13 @@ def findFirstPid(name, args, spod, api):
 
     line = stream(api.connect_get_namespaced_pod_exec, name=name, namespace=spod.metadata.namespace, command=cmd, stderr=True, stdin=False, stdout=True, tty=False)
     _pids = list(filter(None, str.split(line, '\n')))
-    pid = re.sub("[^[0-9]*","", _pids[0])
-    return pid
+    pidlist = []
+    for pid in _pids:
+      pid = re.sub("[^[0-9]*","", pid)
+      if pid != None:
+          pidlist.append(pid)
+    pidlist.sort(key=int)
+    return pidlist[0]
 
 def runit(name, args, spod, cmd):
     pid = findFirstPid(name, args, spod, api)
@@ -231,7 +236,7 @@ def pids(name, args, spod, api):
     launch(name, args, spod, api)
     docker_name = spod.status.container_statuses[0].container_id
     cgroup = re.sub("^docker://","", docker_name)
-    cmd = ['/bin/sh', '-c','/bin/grep pids:/%s /proc/*/cgroup' % cgroup]
+    cmd = ['/bin/sh', '-c','/bin/grep pids:/.*%s /proc/*/cgroup' % cgroup]
 
     line = stream(api.connect_get_namespaced_pod_exec, name=name, namespace=spod.metadata.namespace, command=cmd, stderr=True, stdin=False, stdout=True, tty=False)
     _pids = list(filter(None, str.split(line, '\n')))

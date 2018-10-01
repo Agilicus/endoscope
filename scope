@@ -14,6 +14,7 @@
 # See extcap for how to integrate with wireshark.
 # e.g. /usr/lib/x86_64-linux-gnu/wireshark/extcap/sshdump
 import argparse
+import logging
 import yaml
 import re
 import os
@@ -30,6 +31,7 @@ if os.path.basename(sys.argv[0]) == 'k8scap':
     sys.argv.insert(3, 'dumpcap')
 
 parser = argparse.ArgumentParser()
+parser.add_argument('-d', '--debug', help='Debug API stream', default = False, action = 'store_true')
 parser.add_argument('-i', '--image', help='Image to scope with', default = 'agilicus/endoscope')
 parser.add_argument('-n', '--namespace', help='Source namespace', default = 'default')
 parser.add_argument('-p', '--pod', help='Source pod', default = '', required = True)
@@ -84,6 +86,8 @@ template = """
 apiVersion: v1
 metadata:
   name: {name}
+  annotations:
+    sidecar.istio.io/inject: "false"
 spec:
   nodeName: {node_name}
   hostPID: true
@@ -292,7 +296,6 @@ def dumpcap(name, args, spod, api):
     #["python3", "/usr/lib/x86_64-linux-gnu/wireshark/extcap/k8scap", "--capture", "--extcap-interface", "default/ingress-nginx-ingress-controller-7b66cb4878-x7wwb", "--fifo", "/tmp/wireshark_extcap_default-ingress-nginx-ingress-controller-7b66cb4878-x7wwb_20180813162059_RCnP40"], 0x7ffd92b919e0 /* 59 vars */) = 0
 
     if args.capture:
-        import pdb; pdb.set_trace()
         namespace = args.extcap_interface.split('/')[0]
         pod = args.extcap_interface.split('/')[1]
         spods = api.list_namespaced_pod(watch=False, namespace=namespace, field_selector='metadata.name=%s' % pod)
@@ -336,8 +339,23 @@ def dumpcap(name, args, spod, api):
 
 #######
 
+config.debug = True
 config.load_kube_config()
 api = client.CoreV1Api()
+
+if args.debug:
+    import websocket
+    kslogger = logging.getLogger('kubernetes')
+    urllogger = logging.getLogger('urllib3')
+    clientlogger = logging.getLogger('client')
+    websocketlogger = logging.getLogger('websocket')
+    console_h= logging.StreamHandler()
+    kslogger.addHandler(console_h)
+    kslogger.setLevel(logging.DEBUG)
+    clientlogger.setLevel(logging.DEBUG)
+    websocketlogger.setLevel(logging.DEBUG)
+    websocket.enableTrace(True, console_h)
+
 # Cleanup can accept 'all', which doesn't match
 if args.command == 'dumpcap' or (args.command == 'cleanup' and args.pod == 'all'):
     spod = None

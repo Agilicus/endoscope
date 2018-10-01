@@ -24,15 +24,15 @@ build:
       - reports/
   script: |
       echo Start build
-      docker build --tag $CONTAINER_IMAGE:$CI_BUILD_REF .
-      clairctl analyze --log-level debug $CONTAINER_IMAGE:$CI_BUILD_REF || true
+      docker build --tag $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME .
+      clairctl analyze --log-level debug $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME || true
       echo Generate JSON report
-      clairctl report -f json $CONTAINER_IMAGE:$CI_BUILD_REF || true
+      clairctl report -f json $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME || true
       echo Generate HTML report
-      clairctl report -f html $CONTAINER_IMAGE:$CI_BUILD_REF || true
-      docker push $CONTAINER_IMAGE:$CI_BUILD_REF
+      clairctl report -f html $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME || true
+      docker push $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME
       if [ "$CI_COMMIT_REF_NAME" = "master" ];
       then
-        docker tag $CONTAINER_IMAGE:$CI_BUILD_REF $CONTAINER_IMAGE:latest
+        docker tag $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME $CONTAINER_IMAGE:latest
         docker push $CONTAINER_IMAGE:latest
       fi

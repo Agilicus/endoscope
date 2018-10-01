@@ -181,6 +181,18 @@ spec:
 
 and thus attach to a Pod in XXXX w/ 'nsenter -n -t <PID>'.
 
+## Use within istio and outbound (egress) firewall
+
+If you are attaching this tool to a pod which is managed by an istio
+sidecar, you may find that outbound network access is blocked. If this
+is a problem you can run:
+
+```
+iptables -t NAT -D OUTPUT -p tcp -j ISTIO_OUTPUT
+```
+
+as a temporary means of enabling output access.
+
 ## License
 
 The container is released under Apache 2.0 license.

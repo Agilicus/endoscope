@@ -45,7 +45,8 @@ parser_ping.add_argument('-N', '--dest-namespace', help='Destination pod namespa
 parser_ping.add_argument('-c', '--count', help='Count of pings to send', default = '1')
 parser_ping.add_argument('-i', '--interval', help='Interval of pings to send', default = '0.1')
 parser_ping.add_argument('-g', '--graph', help='Graph result', action = 'store_true', default = False)
-parser_ping.add_argument('-a', '--all', help='Ping all in namespace', action = 'store_true', default = False)
+parser_ping.add_argument('-a', '--all', help='Ping all in namespace (pod ip)', action = 'store_true', default = False)
+parser_ping.add_argument('-H', '--host', help='Ping all in namespace (host ip)', action = 'store_true', default = False)
 ## Shell
 parser_shell = subparsers.add_parser('shell', help='shell help')
 parser_shell.add_argument('args', nargs=argparse.REMAINDER)
@@ -213,7 +214,7 @@ def ping(name, args, spod, api):
     if args.all:
         spods = api.list_namespaced_pod(watch=False, namespace=args.dest_namespace)
         for _spod in spods.items:
-            cmd.append(_spod.status.pod_ip)
+            cmd.append(_spod.status.pod_ip) if not args.host else cmd.append(_spod.status.host_ip)
     else:
         spods = api.list_namespaced_pod(watch=False, namespace=args.dest_namespace, field_selector='metadata.name=%s' % args.dest_pod )
         for _spod in spods.items:

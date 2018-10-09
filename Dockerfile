@@ -17,7 +17,7 @@ RUN apt-get update \
 RUN git clone https://github.com/donbowman/liboping \
     && cd liboping \
     && ./autogen.sh \
-    && ./configure --enable-static --disable-shared --with-ncurses \
+    && ./configure --enable-static --disable-shared --with-ncurses --prefix=/usr \
     && make \
     && make install
 

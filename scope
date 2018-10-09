@@ -87,8 +87,6 @@ template = """
 apiVersion: v1
 metadata:
   name: {name}
-  annotations:
-    sidecar.istio.io/inject: "false"
 spec:
   nodeName: {node_name}
   hostPID: true
@@ -133,8 +131,7 @@ def findFirstPid(name, args, spod, api):
     docker_name = spod.status.container_statuses[0].container_id
     cgroup = re.sub("^docker://","", docker_name)
     cmd = ['/bin/sh', '-c','/bin/grep -l pids:/.*%s /proc/*/cgroup' % cgroup]
-
-    line = stream(api.connect_get_namespaced_pod_exec, name=name, namespace=spod.metadata.namespace, command=cmd, stderr=True, stdin=False, stdout=True, tty=False)
+    line = stream(api.connect_get_namespaced_pod_exec, name=name, container=name, namespace=spod.metadata.namespace, command=cmd, stderr=True, stdin=False, stdout=True, tty=False)
     _pids = list(filter(None, str.split(line, '\n')))
     pidlist = []
     for pid in _pids:
@@ -147,7 +144,7 @@ def findFirstPid(name, args, spod, api):
 def runit(name, args, spod, cmd):
     pid = findFirstPid(name, args, spod, api)
     ns_command = ['/usr/bin/nsenter', '-n', '-t', pid] + cmd
-    resp = stream(api.connect_get_namespaced_pod_exec, name=name, namespace=spod.metadata.namespace, command=ns_command, stderr=True, stdin=False, stdout=True, tty=False, _preload_content=False)
+    resp = stream(api.connect_get_namespaced_pod_exec, container=name, name=name, namespace=spod.metadata.namespace, command=ns_command, stderr=True, stdin=False, stdout=True, tty=False, _preload_content=False)
 
     rc = -1
     while resp.is_open():
@@ -208,7 +205,6 @@ def shell(name, args, spod, api):
 
 def ping(name, args, spod, api):
     launch(name, args, spod, api)
-
     ips = []
     cmd = ['/usr/bin/noping' if args.graph else '/usr/bin/oping', '-c', args.count, '-i', args.interval]
     if args.all:
@@ -243,7 +239,7 @@ def pids(name, args, spod, api):
     cgroup = re.sub("^docker://","", docker_name)
     cmd = ['/bin/sh', '-c','/bin/grep pids:/.*%s /proc/*/cgroup' % cgroup]
 
-    line = stream(api.connect_get_namespaced_pod_exec, name=name, namespace=spod.metadata.namespace, command=cmd, stderr=True, stdin=False, stdout=True, tty=False)
+    line = stream(api.connect_get_namespaced_pod_exec, container=name, name=name, namespace=spod.metadata.namespace, command=cmd, stderr=True, stdin=False, stdout=True, tty=False)
     _pids = list(filter(None, str.split(line, '\n')))
     pids = []
     for pid in _pids:
@@ -306,7 +302,7 @@ def dumpcap(name, args, spod, api):
         pid = findFirstPid(name, args, spod, api)
         command = ['/bin/sh', '-c', '/usr/bin/nsenter -n -t %s /usr/local/bin/dumpcap -f \'%s\' -w - q 2>/dev/null' % (pid,args.filter)]
 
-        resp = stream(api.connect_get_namespaced_pod_exec, name=name, namespace=spod.metadata.namespace, command=command, stderr=True, stdin=False, stdout=True, tty=False, _preload_content=False)
+        resp = stream(api.connect_get_namespaced_pod_exec, container=name, name=name, namespace=spod.metadata.namespace, command=command, stderr=True, stdin=False, stdout=True, tty=False, _preload_content=False)
 
         fd = open(args.fifo, "wb")
 

@@ -43,6 +43,7 @@ parser_ping = subparsers.add_parser('ping', help='ping help')
 parser_ping.add_argument('-d', '--dest-pod', help='Destination pod')
 parser_ping.add_argument('-N', '--dest-namespace', help='Destination pod namespace', default = 'default')
 parser_ping.add_argument('-c', '--count', help='Count of pings to send', default = '1')
+parser_ping.add_argument('-C', '--loopcount', help='Count of pings to send before new flow/ICMP ID', default = '5')
 parser_ping.add_argument('-i', '--interval', help='Interval of pings to send', default = '0.1')
 parser_ping.add_argument('-g', '--graph', help='Graph result', action = 'store_true', default = False)
 parser_ping.add_argument('-a', '--all', help='Ping all in namespace (pod ip)', action = 'store_true', default = False)
@@ -206,7 +207,7 @@ def shell(name, args, spod, api):
 def ping(name, args, spod, api):
     launch(name, args, spod, api)
     ips = []
-    cmd = ['/usr/bin/noping' if args.graph else '/usr/bin/oping', '-c', args.count, '-i', args.interval]
+    cmd = ['/usr/bin/noping' if args.graph else '/usr/bin/oping', '-c', args.count, '-C', args.loopcount, '-i', args.interval]
     if args.all:
         spods = api.list_namespaced_pod(watch=False, namespace=args.dest_namespace)
         for _spod in spods.items:

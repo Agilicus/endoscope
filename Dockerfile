@@ -16,6 +16,7 @@ RUN apt-get update \
 
 RUN git clone https://github.com/donbowman/liboping \
     && cd liboping \
+    && git checkout reset-count \
     && ./autogen.sh \
     && ./configure --enable-static --disable-shared --with-ncurses --prefix=/usr \
     && make \

@@ -95,6 +95,7 @@ spec:
   {imagePullSecrets}
   containers:
   - name: {name}
+    imagePullPolicy: Always
     securityContext:
       privileged: true
       capabilities:

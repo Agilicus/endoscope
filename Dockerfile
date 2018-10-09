@@ -10,9 +10,16 @@ COPY pause.c /pause.c
 # for speed.  The 1b3cedbc5fe5b9d8b454a10fcd2046f0d38a9f19 == tags/wireshark-2.6.2
 # We do the fetch SHA rather than clone since the repo is big.
 RUN apt-get update \
-    && apt-get -y install --no-install-recommends git build-essential ca-certificates \
+    && apt-get -y install --no-install-recommends git build-essential ca-certificates libncurses5-dev \
     && apt-get -y build-dep wireshark-common \
     && gcc -o /usr/local/bin/pause /pause.c
+
+RUN git clone https://github.com/donbowman/liboping \
+    && cd liboping \
+    && ./autogen.sh \
+    && ./configure --enable-static --disable-shared --with-ncurses \
+    && make \
+    && make install
 
 RUN mkdir -p wireshark/build \
     && cd wireshark \
@@ -70,6 +77,9 @@ RUN mkdir -p /go/bin /go/src/github.com/kubernetes-incubator \
 FROM ubuntu:18.04
 COPY --from=wireshark /usr/local/bin/dumpcap /usr/local/bin/dumpcap
 COPY --from=wireshark /usr/local/bin/pause /usr/local/bin/pause
+COPY --from=wireshark /usr/bin/oping /usr/bin/oping
+COPY --from=wireshark /usr/bin/noping /usr/bin/noping
+
 COPY --from=crictl /usr/local/bin/crictl /usr/local/bin/crictl
 COPY sha256sums sha256sums
 ENV LANG en_CA.UTF-8
@@ -78,7 +88,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get update \
     && apt-get -y install --no-install-recommends \
-        locales util-linux python3 hping3 fping oping ca-certificates build-essential python3-dev python3-distutils \
+        locales util-linux python3 hping3 fping ca-certificates build-essential python3-dev python3-distutils \
         inetutils-ping iproute2 curl tcpdump libpcap0.8 libglib2.0-0 libnl-3-200 libnl-genl-3-200 libpcre3 \
         zlib1g libcap2 gdb strace iptables tcpflow net-tools \
     && curl -fLs https://bootstrap.pypa.io/get-pip.py > get-pip.py \

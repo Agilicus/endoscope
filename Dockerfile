@@ -9,7 +9,8 @@ COPY pause.c /pause.c
 # Used github.com mirror rather than https://code.wireshark.org/review/wireshark
 # for speed.  The 1b3cedbc5fe5b9d8b454a10fcd2046f0d38a9f19 == tags/wireshark-2.6.2
 # We do the fetch SHA rather than clone since the repo is big.
-RUN apt-get update \
+RUN echo deb-src http://archive.ubuntu.com/ubuntu/ bionic-updates universe >> /etc/apt/sources.list \
+    && apt-get update \
     && apt-get -y install --no-install-recommends git build-essential ca-certificates libncurses5-dev \
     && apt-get -y build-dep wireshark-common \
     && gcc -o /usr/local/bin/pause /pause.c

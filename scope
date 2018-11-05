@@ -105,6 +105,8 @@ spec:
       name: crisock
     - mountPath: /run/docker/netns
       name: netns
+    - mountPath: /var/lib/docker
+      name: dockerlib
     env:
       - name: "LINES"
         value: "{lines}"
@@ -121,6 +123,10 @@ spec:
       path: /var/run/docker/netns
       type: ""
     name: netns
+  - hostPath:
+      path: /var/lib/docker
+      type: ""
+    name: dockerlib
 """
 
 def findFirstPid(name, args, spod, api):

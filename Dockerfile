@@ -92,7 +92,7 @@ RUN apt-get update \
     && apt-get -y install --no-install-recommends \
         locales util-linux python3 hping3 fping ca-certificates build-essential python3-dev python3-distutils \
         inetutils-ping iproute2 curl tcpdump libpcap0.8 libglib2.0-0 libnl-3-200 libnl-genl-3-200 libpcre3 \
-        zlib1g libcap2 gdb strace iptables tcpflow net-tools lsof vim \
+        zlib1g libcap2 gdb strace iptables tcpflow net-tools lsof vim gawk \
     && curl -fLs https://bootstrap.pypa.io/3.3/get-pip.py > get-pip.py \
     && sha256sum -c sha256sums \
     && python3 get-pip.py \

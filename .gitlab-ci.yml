@@ -1,38 +1,13 @@
 ---
-image: cr.agilicus.com/corp-tools/docker-compose
-
-variables:
-  DOCKER_DRIVER: overlay2
-  PORT: 2375
-  DOCKER_HOST: tcp://localhost:2375
-  CONTAINER_IMAGE: $CI_REGISTRY/$CI_PROJECT_PATH
-
-services:
-  - name: docker:dind
-
 stages:
+  - lint
   - build
 
-before_script:
-  - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+include:
+  - project: tooling/pipelines
+    ref: master
+    file: lint-conform.yml
+  - project: tooling/pipelines
+    ref: master
+    file: docker-build.yml
 
-build:
-  stage: build
-  artifacts:
-    name: "$CI_PROJECT_PATH-$CI_COMMIT_REF_NAME"
-    paths:
-      - reports/
-  script: |
-      echo Start build
-      docker build --tag $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME .
-      clairctl analyze --log-level debug $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME || true
-      echo Generate JSON report
-      clairctl report -f json $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME || true
-      echo Generate HTML report
-      clairctl report -f html $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME || true
-      docker push $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME
-      if [ "$CI_COMMIT_REF_NAME" = "master" ];
-      then
-        docker tag $CONTAINER_IMAGE:$CI_COMMIT_REF_NAME $CONTAINER_IMAGE:latest
-        docker push $CONTAINER_IMAGE:latest
-      fi

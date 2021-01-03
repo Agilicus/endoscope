@@ -193,6 +193,27 @@ iptables -t NAT -D OUTPUT -p tcp -j ISTIO_OUTPUT
 
 as a temporary means of enabling output access.
 
+## Filesystem access
+To find which overlay mount is the guest filesystem (e.g. to find a file),
+on the guest run 'ls -i <file>', which gives you the inode. Then, in
+endoscope, run debugfs:
+
+On debugee:
+```
+bash-4.4$ ls -i usr/local/lib/python3.7/http/client.py
+3601465 usr/local/lib/python3.7/http/client.py
+```
+
+On endoscope:
+```
+# df -lh /var/lib/docker/overlay2/
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1        30G   22G  7.2G  76% /var/lib/docker
+root@debug-dashboard-superset-d4cd75b78-mswbl:/var/lib# debugfs -R 'ncheck 3601465' /dev/sda1 2>/dev/null
+Inode	Pathname
+3601465	/var/lib/docker/overlay2/c509876fb71d801e4398f7c11cc9d4458dc30f6f6334301d3e51704037cadd68/diff/usr/local/lib/python3.7/http/client.py
+```
+
 ## License
 
 The container is released under Apache 2.0 license.

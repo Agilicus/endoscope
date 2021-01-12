@@ -10,6 +10,14 @@ Endoscope: snoop around inside your Kubernetes pods.
 - tcpdump
 - and more
 
+At [Agilicus](https://www.agilicus.com) we use this to diagnose
+service mesh issues, east-west calls, etc. Its more efficient
+than rebuilding your containers to have root and diagnostics tools,
+its simpler than redoing your yaml to add a sidecar.
+
+Endoscope has a companion, [dink](https://www.agilicus.com/snooping-on-your-kubernetes-nodes-containers-without-sshing-to-it-dink/)
+which allows access to the CRI (e.g. docker image ls etc) on a node, without ssh'ing to it.
+
 ## Usage
 
 This repo contains two components:
